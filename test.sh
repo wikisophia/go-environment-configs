@@ -6,17 +6,16 @@ trap 'CMD=${last_command} RET=$?; if [[ $RET -ne 0 ]]; then echo "\"${CMD}\" com
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 cd ${SCRIPTPATH}
 
-go test ./... -count=1
+go test . -count=1
 
 # golint and gofmt always return 0... so we need to capture the output and test it
-LINT=$(golint $(go list ./... | grep -v /vendor/))
+LINT=$(golint .)
 if ! [ -z "${LINT}" ]; then
     echo ${LINT}
     exit 1
 fi
 
-# gofmt doesn't support ./... yet either... so this lists the files/directories manually
-FMT=$(gofmt -l -s $(ls -d */ | grep -v "vendor") *.go)
+FMT=$(gofmt -l -s *.go)
 if ! [ -z ${FMT} ]; then
     echo ''
     echo "Some files have bad style. Run the following commands to fix them:"
