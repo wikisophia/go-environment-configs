@@ -31,8 +31,8 @@ func TestWellFormedValues(t *testing.T) {
 	cfg := Config{
 		Nested: &Nested{},
 	}
-	if err := configs.Parse("MY", &cfg); err != nil {
-		t.Errorf("Got unexpected Parse() error: %v", err)
+	if err := configs.Load("MY", &cfg); err != nil {
+		t.Errorf("Got unexpected Load() error: %v", err)
 		return
 	}
 	assertBoolsEqual(t, true, cfg.Boolean)
@@ -51,9 +51,9 @@ func TestBadValues(t *testing.T) {
 	cfg := Config{
 		Nested: &Nested{},
 	}
-	err := configs.Parse("MY", &cfg)
+	err := configs.Load("MY", &cfg)
 	if err == nil {
-		t.Errorf("Missing expected Parse() error: %v", err)
+		t.Errorf("Missing expected Load() error: %v", err)
 		return
 	}
 
@@ -61,6 +61,25 @@ func TestBadValues(t *testing.T) {
 	assertBoolsEqual(t, false, err.IsValid("MY_BOOLEAN"))
 	assertBoolsEqual(t, false, err.IsValid("MY_INT_SLICE"))
 	assertBoolsEqual(t, false, err.IsValid("MY_NESTED_VALUE"))
+}
+
+func TestExtraErrors(t *testing.T) {
+	defer setEnv(t, "MY_INT", "-1")()
+
+	cfg := Config{
+		Nested: &Nested{},
+	}
+	err := configs.Load("MY", &cfg)
+	if err != nil {
+		t.Errorf("Got unexpected Load() error: %v", err)
+		return
+	}
+	err = configs.Append(err, "MY_INT", "must be a positive integer")
+	if err == nil {
+		t.Error("a real error should have been returned")
+		return
+	}
+	assertBoolsEqual(t, false, err.IsValid("MY_INT"))
 }
 
 func assertStringsEqual(t *testing.T, expected string, actual string) {

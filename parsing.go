@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -8,31 +9,31 @@ import (
 	"strings"
 )
 
-// MustParse wraps Parse, but panics if an error occurs.
-func MustParse(prefix string, container interface{}) {
-	err := Parse(prefix, container)
+// MustLoad wraps Load, but panics if an error occurs.
+func MustLoad(prefix string, container interface{}) {
+	err := Load(prefix, container)
 	if err != nil {
 		panic(err)
 	}
 }
 
-// Parse loads the container with environment variables.
+// Load populates the container with environment variables.
 // The container must be a pointer to a struct whose properties have
 // "environment" tags.
-func Parse(prefix string, container interface{}) *ParseError {
+func Load(prefix string, container interface{}) *LoadError {
 	return visit(container, prefix, loadEnvironmentVisitor)
 }
 
-// ParseError is returned by Parse() if anything went wrong while
+// LoadError is returned by Load() if anything went wrong while
 // initializing the config value.
-type ParseError struct {
+type LoadError struct {
 	invalidKeys map[string]error
 }
 
 // IsValid returns true if the environment variable had a valid value,
 // and false if it was invalid. For example, the value "foo" would be
 // invalid if the struct value for that variable was defined with an int.
-func (p *ParseError) IsValid(environment string) bool {
+func (p *LoadError) IsValid(environment string) bool {
 	if p == nil {
 		return true
 	}
@@ -41,8 +42,39 @@ func (p *ParseError) IsValid(environment string) bool {
 	return !ok
 }
 
+// Append marks an environment variable as invalid,
+// with the given error message.
+//
+// This can be used after Parse() to aggregate "extra" validation errors
+// (like "int must be positive" or "string can't be empty") alongside
+// those produced by this library.
+//
+// If err is nil, a new one will be returned
+func Append(err *LoadError, environment string, msg string) *LoadError {
+	if err == nil {
+		return &LoadError{
+			invalidKeys: map[string]error{
+				environment: errors.New(msg),
+			},
+		}
+	}
+
+	// Defensive in case someone creates an empty LoadError{} manually
+	if err.invalidKeys == nil {
+		err.invalidKeys = make(map[string]error)
+	}
+
+	existing, ok := err.invalidKeys[environment]
+	if ok {
+		err.invalidKeys[environment] = fmt.Errorf("%v: %s", existing, msg)
+	} else {
+		err.invalidKeys[environment] = errors.New(msg)
+	}
+	return err
+}
+
 // Error returns an error message describing all the invalid environment variables.
-func (p *ParseError) Error() string {
+func (p *LoadError) Error() string {
 	if p == nil {
 		return ""
 	}
@@ -58,11 +90,11 @@ func (p *ParseError) Error() string {
 // Visit calls the visitor function on each property on container,
 // unless that property is a struct itself. It will recurse through any
 // any structs until it eventually gets finds the leaves.
-func visit(container interface{}, prefix string, visitor func(value reflect.Value, environment string) error) *ParseError {
+func visit(container interface{}, prefix string, visitor func(value reflect.Value, environment string) error) *LoadError {
 	return visitReflectValue(prefix, reflect.ValueOf(container), visitor, nil)
 }
 
-func visitReflectValue(environmentSoFar string, theValue reflect.Value, visitor func(value reflect.Value, environment string) error, errs *ParseError) *ParseError {
+func visitReflectValue(environmentSoFar string, theValue reflect.Value, visitor func(value reflect.Value, environment string) error, errs *LoadError) *LoadError {
 	theType := theValue.Type().Elem()
 
 	for i := 0; i < theType.NumField(); i++ {
@@ -75,7 +107,7 @@ func visitReflectValue(environmentSoFar string, theValue reflect.Value, visitor 
 		default:
 			if err := visitor(thisFieldValue, environment); err != nil {
 				if errs == nil {
-					errs = &ParseError{
+					errs = &LoadError{
 						invalidKeys: map[string]error{
 							environment: err,
 						},
