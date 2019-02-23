@@ -1,6 +1,7 @@
 package configs_test
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestWellFormedValues(t *testing.T) {
 	cfg := Config{
 		Nested: &Nested{},
 	}
-	if err := configs.Load("MY", &cfg); err != nil {
+	if err := configs.Visit(&cfg, configs.Loader("MY")); err != nil {
 		t.Errorf("Got unexpected Load() error: %v", err)
 		return
 	}
@@ -51,7 +52,7 @@ func TestBadValues(t *testing.T) {
 	cfg := Config{
 		Nested: &Nested{},
 	}
-	err := configs.Load("MY", &cfg)
+	err := configs.Visit(&cfg, configs.Loader("MY"))
 	if err == nil {
 		t.Errorf("Missing expected Load() error: %v", err)
 		return
@@ -69,12 +70,12 @@ func TestExtraErrors(t *testing.T) {
 	cfg := Config{
 		Nested: &Nested{},
 	}
-	err := configs.Load("MY", &cfg)
+	err := configs.Visit(&cfg, configs.Loader("MY"))
 	if err != nil {
 		t.Errorf("Got unexpected Load() error: %v", err)
 		return
 	}
-	err = configs.Append(err, "MY_INT", "must be a positive integer")
+	err = configs.Append(err, "MY_INT", errors.New("must be a positive integer"))
 	if err == nil {
 		t.Error("a real error should have been returned")
 		return
