@@ -21,11 +21,11 @@ type VisitError struct {
 // Visit calls the visitor function on each property on container,
 // unless that property is a struct itself. It will recurse through any
 // any structs until it eventually gets finds the leaves.
-func Visit(container interface{}, visitor Visitor) *TraversalError {
+func Visit(container interface{}, visitor Visitor) error {
 	return doVisit("", reflect.ValueOf(container), visitor, nil)
 }
 
-func doVisit(environmentSoFar string, theValue reflect.Value, visitor Visitor, errs *TraversalError) *TraversalError {
+func doVisit(environmentSoFar string, theValue reflect.Value, visitor Visitor, errs error) error {
 	theType := theValue.Type().Elem()
 
 	for i := 0; i < theType.NumField(); i++ {
@@ -37,15 +37,7 @@ func doVisit(environmentSoFar string, theValue reflect.Value, visitor Visitor, e
 			errs = doVisit(environment, thisFieldValue, visitor, errs)
 		default:
 			if err := visitor(environment, thisFieldValue); err != nil {
-				if errs == nil {
-					errs = &TraversalError{
-						invalidKeys: map[string]error{
-							err.Key: err,
-						},
-					}
-				} else {
-					errs.invalidKeys[err.Key] = err
-				}
+				errs = Append(errs, err.Key, err)
 			}
 		}
 	}
@@ -69,14 +61,15 @@ func (p *TraversalError) IsValid(key string) bool {
 	return !ok
 }
 
-// Append adds a custom key/error to the Traversal set.
+// Append adds a custom key/error to the TraversalError. If the input error is nil,
+// a new *TraversalError will be returned.
 //
 // This can be used after Parse() to aggregate "extra" validation errors
 // (like "int must be positive" or "string can't be empty") alongside
 // those produced by this library.
 //
-// If err is nil, a new one will be returned.
-func Append(err *TraversalError, key string, msg error) *TraversalError {
+// If err is not a *TraversalError, this will panic.
+func Append(err error, key string, msg error) error {
 	if err == nil {
 		return &TraversalError{
 			invalidKeys: map[string]error{
@@ -85,18 +78,22 @@ func Append(err *TraversalError, key string, msg error) *TraversalError {
 		}
 	}
 
-	// Defensive in case someone creates an empty LoadError{} manually
-	if err.invalidKeys == nil {
-		err.invalidKeys = make(map[string]error)
+	if casted, ok := err.(*TraversalError); ok {
+		// Defensive in case someone creates an empty LoadError{} manually
+		if casted.invalidKeys == nil {
+			casted.invalidKeys = make(map[string]error)
+		}
+
+		existing, ok := casted.invalidKeys[key]
+		if ok {
+			casted.invalidKeys[key] = fmt.Errorf("%v: %s", existing, msg)
+		} else {
+			casted.invalidKeys[key] = msg
+		}
+		return casted
 	}
 
-	existing, ok := err.invalidKeys[key]
-	if ok {
-		err.invalidKeys[key] = fmt.Errorf("%v: %s", existing, msg)
-	} else {
-		err.invalidKeys[key] = msg
-	}
-	return err
+	panic("Append is only intended to work on *TraversalError types")
 }
 
 // Error returns an error message describing all the invalid environment variables.

@@ -58,10 +58,14 @@ func TestBadValues(t *testing.T) {
 		return
 	}
 
-	assertBoolsEqual(t, false, err.IsValid("MY_INT"))
-	assertBoolsEqual(t, false, err.IsValid("MY_BOOLEAN"))
-	assertBoolsEqual(t, false, err.IsValid("MY_INT_SLICE"))
-	assertBoolsEqual(t, false, err.IsValid("MY_NESTED_VALUE"))
+	if casted, ok := err.(*configs.TraversalError); ok {
+		assertBoolsEqual(t, false, casted.IsValid("MY_INT"))
+		assertBoolsEqual(t, false, casted.IsValid("MY_BOOLEAN"))
+		assertBoolsEqual(t, false, casted.IsValid("MY_INT_SLICE"))
+		assertBoolsEqual(t, false, casted.IsValid("MY_NESTED_VALUE"))
+	} else {
+		t.Errorf("configs.Visit should have returned a *TraversalError.")
+	}
 }
 
 func TestExtraErrors(t *testing.T) {
@@ -80,7 +84,11 @@ func TestExtraErrors(t *testing.T) {
 		t.Error("a real error should have been returned")
 		return
 	}
-	assertBoolsEqual(t, false, err.IsValid("MY_INT"))
+	if casted, ok := err.(*configs.TraversalError); ok {
+		assertBoolsEqual(t, false, casted.IsValid("MY_INT"))
+	} else {
+		t.Errorf("configs.Visit should have returned a *TraversalError.")
+	}
 }
 
 func assertStringsEqual(t *testing.T, expected string, actual string) {
