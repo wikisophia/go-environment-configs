@@ -1,5 +1,8 @@
 language: go
 dist: xenial
+branches:
+  only:
+    - master
 go:
   - '1.11.4'
 before_script:
