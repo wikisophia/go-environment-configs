@@ -1,5 +1,5 @@
 
-[![BuildStatus](https://travis-ci.org/wikisophia/go-environment-configs.svg?branch=master)](https://travis-ci.org/wikisophia/go-environment-configs)
+[![BuildStatus](https://travis-ci.com/wikisophia/go-environment-configs.svg?branch=master)](https://travis-ci.com/wikisophia/go-environment-configs)
 [![ReportCard](https://goreportcard.com/badge/github.com/wikisophia/go-environment-configs)](https://goreportcard.com/report/github.com/wikisophia/go-environment-configs)
 [![GoDoc](https://godoc.org/github.com/wikisophia/go-environment-configs?status.svg)](https://godoc.org/github.com/wikisophia/go-environment-configs)
 
