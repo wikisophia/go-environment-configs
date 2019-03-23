@@ -50,11 +50,11 @@ Use them like this:
 
 ```go
 import (
-	"fmt"
-	"log"
-	"os"
+  "fmt"
+  "log"
+  "os"
 
-	"github.com/wikisophia/go-environment-configs"
+  "github.com/wikisophia/go-environment-configs"
 )
 
 func Parse() Config {
@@ -74,7 +74,7 @@ func Parse() Config {
 
   // Print the config values.
   // Anything named "password" will be logged as "<redacted>"
-	configs.Visit(&cfg, configs.Logger("MYAPP"))
+  configs.Visit(&cfg, configs.Logger("MYAPP"))
 }
 ```
 
