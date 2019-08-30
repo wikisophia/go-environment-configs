@@ -2,6 +2,7 @@ package configs
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 	"reflect"
 	"strconv"
@@ -47,6 +48,20 @@ func Loader(prefix string) Visitor {
 			default:
 				panic(fmt.Sprintf("loadEnvironmentVisitor() is not yet implement for slices of type %v", value.Type().Elem().Kind()))
 			}
+		case reflect.Struct:
+			switch value.Type().String() {
+			case "big.Int":
+				return parseAndSetBigInt(environment, value, environmentValue)
+			default:
+				panic("loadEnvironmentVisitor() hasn't yet implemented parsing for type " + value.Type().String())
+			}
+		case reflect.Ptr:
+			switch value.Type().String() {
+			case "*big.Int":
+				return parseAndSetBigIntPointer(environment, value, environmentValue)
+			default:
+				panic("loadEnvironmentVisitor() hasn't yet implemented parsing for type " + value.Type().String())
+			}
 		default:
 			panic("loadEnvironmentVisitor() hasn't yet implemented parsing for type " + value.String())
 		}
@@ -82,6 +97,36 @@ func parseAndSetInt(env string, toSet reflect.Value, value string) *VisitError {
 
 func parseInt(value string) (int64, error) {
 	return strconv.ParseInt(value, 10, 64)
+}
+
+func parseAndSetBigInt(env string, toSet reflect.Value, value string) *VisitError {
+	parsed, ok := parseBigInt(value)
+	if !ok {
+		return &VisitError{
+			error: fmt.Errorf("%s must be a base-10 big.Int. Got \"%s\"", env, value),
+			Key:   env,
+		}
+	}
+	toSet.Set(reflect.ValueOf(parsed))
+	return nil
+}
+
+func parseAndSetBigIntPointer(env string, toSet reflect.Value, value string) *VisitError {
+	parsed, ok := parseBigInt(value)
+	if !ok {
+		return &VisitError{
+			error: fmt.Errorf("%s must be a base-10 big.Int. Got \"%s\"", env, value),
+			Key:   env,
+		}
+	}
+	toSet.Set(reflect.ValueOf(&parsed))
+	return nil
+}
+
+func parseBigInt(value string) (big.Int, bool) {
+	parsed := big.Int{}
+	_, ok := parsed.SetString(value, 10)
+	return parsed, ok
 }
 
 func parseCommaSeparatedStrings(value string) []string {

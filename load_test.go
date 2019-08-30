@@ -2,6 +2,7 @@ package configs_test
 
 import (
 	"errors"
+	"math/big"
 	"os"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 type Config struct {
 	Boolean     bool     `environment:"BOOLEAN"`
 	Int         int      `environment:"INT"`
+	BigInt      big.Int  `environment:"BIG_INT"`
 	String      string   `environment:"STRING"`
 	IntSlice    []int    `environment:"INT_SLICE"`
 	StringSlice []string `environment:"STRING_SLICE"`
@@ -18,16 +20,19 @@ type Config struct {
 }
 
 type Nested struct {
-	Value int `environment:"VALUE"`
+	Value         int      `environment:"VALUE"`
+	BigIntPointer *big.Int `environment:"BIG_INT_POINTER"`
 }
 
 func TestWellFormedValues(t *testing.T) {
 	defer setEnv(t, "MY_BOOLEAN", "true")()
 	defer setEnv(t, "MY_INT", "10")()
+	defer setEnv(t, "MY_BIG_INT", "9571")()
 	defer setEnv(t, "MY_STRING", "someString")()
 	defer setEnv(t, "MY_INT_SLICE", "1,2")()
 	defer setEnv(t, "MY_STRING_SLICE", "abc,def")()
 	defer setEnv(t, "MY_NESTED_VALUE", "20")()
+	defer setEnv(t, "MY_NESTED_BIG_INT_POINTER", "112")()
 
 	cfg := Config{
 		Nested: &Nested{},
@@ -39,13 +44,16 @@ func TestWellFormedValues(t *testing.T) {
 	assertBoolsEqual(t, true, cfg.Boolean)
 	assertStringsEqual(t, "someString", cfg.String)
 	assertIntsEqual(t, 10, cfg.Int)
+	assertBigIntsEqual(t, big.NewInt(9571), &cfg.BigInt)
 	assertIntSlicesEqual(t, []int{1, 2}, cfg.IntSlice)
 	assertStringSlicesEqual(t, []string{"abc", "def"}, cfg.StringSlice)
 	assertIntsEqual(t, 20, cfg.Nested.Value)
+	assertBigIntsEqual(t, big.NewInt(112), cfg.Nested.BigIntPointer)
 }
 
 func TestBadValues(t *testing.T) {
 	defer setEnv(t, "MY_INT", "foo")()
+	defer setEnv(t, "MY_BIG_INT", "99abc")()
 	defer setEnv(t, "MY_BOOLEAN", "3")()
 	defer setEnv(t, "MY_INT_SLICE", "1,foo,2")()
 	defer setEnv(t, "MY_NESTED_VALUE", "bar")()
@@ -60,6 +68,7 @@ func TestBadValues(t *testing.T) {
 
 	if casted, ok := err.(*configs.TraversalError); ok {
 		assertBoolsEqual(t, false, casted.IsValid("MY_INT"))
+		assertBoolsEqual(t, false, casted.IsValid("MY_BIG_INT"))
 		assertBoolsEqual(t, false, casted.IsValid("MY_BOOLEAN"))
 		assertBoolsEqual(t, false, casted.IsValid("MY_INT_SLICE"))
 		assertBoolsEqual(t, false, casted.IsValid("MY_NESTED_VALUE"))
@@ -124,6 +133,13 @@ func assertIntsEqual(t *testing.T, expected int, actual int) {
 	t.Helper()
 	if expected != actual {
 		t.Errorf(`Expected "%d" does not match actual "%d"`, expected, actual)
+	}
+}
+
+func assertBigIntsEqual(t *testing.T, expected *big.Int, actual *big.Int) {
+	t.Helper()
+	if expected.Cmp(actual) != 0 {
+		t.Errorf(`Expected "%s" does not match actual "%s"`, expected.String(), actual.String())
 	}
 }
 
