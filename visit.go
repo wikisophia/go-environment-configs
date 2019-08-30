@@ -25,6 +25,12 @@ func Visit(container interface{}, visitor Visitor) error {
 	return doVisit("", reflect.ValueOf(container), visitor, nil)
 }
 
+var s struct{}
+var terminalTypes = map[string]struct{}{
+	"big.Int":  s,
+	"*big.Int": s,
+}
+
 func doVisit(environmentSoFar string, theValue reflect.Value, visitor Visitor, errs error) error {
 	theType := theValue.Type().Elem()
 
@@ -34,7 +40,13 @@ func doVisit(environmentSoFar string, theValue reflect.Value, visitor Visitor, e
 		environment := environmentSoFar + "_" + thisField.Tag.Get("environment")
 		switch thisField.Type.Kind() {
 		case reflect.Ptr:
-			errs = doVisit(environment, thisFieldValue, visitor, errs)
+			if _, ok := terminalTypes[thisField.Type.String()]; ok {
+				if err := visitor(environment, thisFieldValue); err != nil {
+					errs = Append(errs, err.Key, err)
+				}
+			} else {
+				errs = doVisit(environment, thisFieldValue, visitor, errs)
+			}
 		default:
 			if err := visitor(environment, thisFieldValue); err != nil {
 				errs = Append(errs, err.Key, err)
