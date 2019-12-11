@@ -106,7 +106,7 @@ func appendError(err error, key string, msg error) error {
 		return casted
 	}
 
-	panic("Append() only works on errors returend by the go-environment-configs library.")
+	panic("Ensure() only works on errors returend by the go-environment-configs library.")
 }
 
 // Error returns an error message describing all the invalid environment variables.
