@@ -9,21 +9,27 @@ import (
 	"strings"
 )
 
-// MustLoader behaves like Loader, except it panics instead of returning errors.
-func MustLoader(prefix string) Visitor {
-	delegate := Loader(prefix)
-	return Visitor(func(environment string, value reflect.Value) *VisitError {
-		if err := delegate(environment, value); err != nil {
-			panic(err)
-		}
-		return nil
-	})
+// MustLoadWithPrefix loads the environment variables into a struct.
+// It panics if any of the environment variables' values can't be
+// coerced into the type defined on the struct.
+func MustLoadWithPrefix(container interface{}, prefix string) {
+	err := LoadWithPrefix(container, prefix)
+	if err != nil {
+		panic(err)
+	}
 }
 
-// Loader returns a Visitor which populates the struct's properties with
+// LoadWithPrefix loads the values of environment variables into a struct.
+// It returns an error if any of the environment variable values don't match
+// the type defined on the struct.
+func LoadWithPrefix(container interface{}, prefix string) error {
+	return visit(container, loader(prefix))
+}
+
+// loader returns a visitor which populates the struct's properties with
 // environment variables.
-func Loader(prefix string) Visitor {
-	return Visitor(func(environment string, value reflect.Value) *VisitError {
+func loader(prefix string) visitor {
+	return visitor(func(environment string, value reflect.Value) *visitError {
 		environment = prefix + environment
 		environmentValue, isSet := os.LookupEnv(environment)
 		if !isSet {
@@ -68,26 +74,26 @@ func Loader(prefix string) Visitor {
 	})
 }
 
-func parseAndSetBool(env string, toSet reflect.Value, value string) *VisitError {
+func parseAndSetBool(env string, toSet reflect.Value, value string) *visitError {
 	switch value {
 	case "true":
 		toSet.SetBool(true)
 	case "false":
 		toSet.SetBool(false)
 	default:
-		return &VisitError{
-			error: fmt.Errorf(`%s must be "true" or "false". Got "%s"`, env, value),
+		return &visitError{
+			error: fmt.Errorf(`must be "true" or "false": got "%s"`, value),
 			Key:   env,
 		}
 	}
 	return nil
 }
 
-func parseAndSetInt(env string, toSet reflect.Value, value string) *VisitError {
+func parseAndSetInt(env string, toSet reflect.Value, value string) *visitError {
 	parsed, err := parseInt(value)
 	if err != nil {
-		return &VisitError{
-			error: fmt.Errorf("%s must be an int. Got \"%s\"", env, value),
+		return &visitError{
+			error: fmt.Errorf("must be an int: got \"%s\"", value),
 			Key:   env,
 		}
 	}
@@ -99,11 +105,11 @@ func parseInt(value string) (int64, error) {
 	return strconv.ParseInt(value, 10, 64)
 }
 
-func parseAndSetBigInt(env string, toSet reflect.Value, value string) *VisitError {
+func parseAndSetBigInt(env string, toSet reflect.Value, value string) *visitError {
 	parsed, ok := parseBigInt(value)
 	if !ok {
-		return &VisitError{
-			error: fmt.Errorf("%s must be a base-10 big.Int. Got \"%s\"", env, value),
+		return &visitError{
+			error: fmt.Errorf("must be a base-10 big.Int: got \"%s\"", value),
 			Key:   env,
 		}
 	}
@@ -111,11 +117,11 @@ func parseAndSetBigInt(env string, toSet reflect.Value, value string) *VisitErro
 	return nil
 }
 
-func parseAndSetBigIntPointer(env string, toSet reflect.Value, value string) *VisitError {
+func parseAndSetBigIntPointer(env string, toSet reflect.Value, value string) *visitError {
 	parsed, ok := parseBigInt(value)
 	if !ok {
-		return &VisitError{
-			error: fmt.Errorf("%s must be a base-10 big.Int. Got \"%s\"", env, value),
+		return &visitError{
+			error: fmt.Errorf("must be a base-10 big.Int: got \"%s\"", value),
 			Key:   env,
 		}
 	}
@@ -136,10 +142,10 @@ func parseCommaSeparatedStrings(value string) []string {
 	return strings.Split(value, ",")
 }
 
-func parseAndSetIntSlice(env string, toSet reflect.Value, value string) *VisitError {
+func parseAndSetIntSlice(env string, toSet reflect.Value, value string) *visitError {
 	parsed, err := parseCommaSeparatedInts(value)
 	if err != nil {
-		return &VisitError{
+		return &visitError{
 			error: err,
 			Key:   env,
 		}
@@ -157,7 +163,7 @@ func parseCommaSeparatedInts(value string) ([]int, error) {
 	for i := 0; i < len(stringSlice); i++ {
 		parsed, err := strconv.Atoi(stringSlice[i])
 		if err != nil {
-			return nil, fmt.Errorf(`value "%s" contains a non-int at index %d`, value, i)
+			return nil, fmt.Errorf(`must be a comma-separated list of ints: got "%s" which contains a non-int at index %d`, value, i)
 		}
 		intSlice[i] = parsed
 	}
