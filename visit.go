@@ -96,7 +96,7 @@ func appendError(err error, key string, msg error) error {
 		// Don't overwrite old error messages. This makes sure that type errors like
 		// "must be an int" get printed over post-parse errors like "must be positive"
 		if existing, ok := casted.invalidKeys[key]; ok {
-			casted.invalidKeys[key] = fmt.Errorf("%v: %s", existing, msg)
+			casted.invalidKeys[key] = fmt.Errorf("%v: %v", existing, msg)
 		} else {
 			casted.invalidKeys[key] = msg
 		}
