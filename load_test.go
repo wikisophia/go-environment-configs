@@ -14,6 +14,10 @@ import (
 type Config struct {
 	Boolean      bool     `environment:"BOOLEAN"`
 	Int          int      `environment:"INT"`
+	UINT_8       uint8    `environment:"UINT_8"`
+	UINT_16      uint16   `environment:"UINT_16"`
+	UINT_32      uint32   `environment:"UINT_32"`
+	UINT_64      uint64   `environment:"UINT_64"`
 	BigInt       big.Int  `environment:"BIG_INT"`
 	String       string   `environment:"STRING"`
 	IntSlice     []int    `environment:"INT_SLICE"`
@@ -30,9 +34,13 @@ type Nested struct {
 func TestWellFormedValues(t *testing.T) {
 	defer setEnv(t, "MY_BOOLEAN", "true")()
 	defer setEnv(t, "MY_INT", "10")()
+	defer setEnv(t, "MY_UINT_8", "6")()
+	defer setEnv(t, "MY_UINT_16", "7")()
+	defer setEnv(t, "MY_UINT_32", "8")()
+	defer setEnv(t, "MY_UINT_64", "9")()
 	defer setEnv(t, "MY_BIG_INT", "9571")()
 	defer setEnv(t, "MY_STRING", "someString")()
-	defer setEnv(t, "MY_INT_SLICE", "1,2")()
+	defer setEnv(t, "MY_INT_SLICE", "1,-2")()
 	defer setEnv(t, "MY_STRING_SLICE", "abc,def")()
 	defer setEnv(t, "MY_NESTED_VALUE", "20")()
 	defer setEnv(t, "MY_NESTED_BIG_INT_POINTER", "112")()
@@ -48,8 +56,12 @@ func TestWellFormedValues(t *testing.T) {
 	assertBoolsEqual(t, true, cfg.Boolean)
 	assertStringsEqual(t, "someString", cfg.String)
 	assertIntsEqual(t, 10, cfg.Int)
+	assertIntsEqual(t, 6, int(cfg.UINT_8))
+	assertIntsEqual(t, 7, int(cfg.UINT_16))
+	assertIntsEqual(t, 8, int(cfg.UINT_32))
+	assertIntsEqual(t, 9, int(cfg.UINT_64))
 	assertBigIntsEqual(t, big.NewInt(9571), &cfg.BigInt)
-	assertIntSlicesEqual(t, []int{1, 2}, cfg.IntSlice)
+	assertIntSlicesEqual(t, []int{1, -2}, cfg.IntSlice)
 	assertStringSlicesEqual(t, []string{"abc", "def"}, cfg.StringSlice)
 	assertIntsEqual(t, 20, cfg.Nested.Value)
 	assertBigIntsEqual(t, big.NewInt(112), cfg.Nested.BigIntPointer)
@@ -61,9 +73,13 @@ func TestWellFormedValues(t *testing.T) {
 	logged := buf.String()
 	assertStringContains(t, logged, "MY_BOOLEAN: true")
 	assertStringContains(t, logged, "MY_INT: 10")
+	assertStringContains(t, logged, "MY_UINT_8: 6")
+	assertStringContains(t, logged, "MY_UINT_16: 7")
+	assertStringContains(t, logged, "MY_UINT_32: 8")
+	assertStringContains(t, logged, "MY_UINT_64: 9")
 	assertStringContains(t, logged, "MY_BIG_INT: big.Int{neg:false, abs:big.nat{0x2563}}")
 	assertStringContains(t, logged, "MY_STRING: \"someString\"")
-	assertStringContains(t, logged, "MY_INT_SLICE: []int{1, 2}")
+	assertStringContains(t, logged, "MY_INT_SLICE: []int{1, -2}")
 	assertStringContains(t, logged, "MY_STRING_SLICE: []string{\"abc\", \"def\"}")
 	assertStringContains(t, logged, "MY_NESTED_VALUE: 20")
 	assertStringContains(t, logged, "MY_NESTED_BIG_INT_POINTER: 112")
@@ -72,6 +88,10 @@ func TestWellFormedValues(t *testing.T) {
 }
 
 func TestBadValues(t *testing.T) {
+	defer setEnv(t, "MY_UINT_8", "a")()
+	defer setEnv(t, "MY_UINT_16", "b")()
+	defer setEnv(t, "MY_UINT_32", "c")()
+	defer setEnv(t, "MY_UINT_64", "d")()
 	defer setEnv(t, "MY_INT", "foo")()
 	defer setEnv(t, "MY_BIG_INT", "99abc")()
 	defer setEnv(t, "MY_NESTED_BIG_INT_POINTER", "a34k")()
@@ -89,11 +109,55 @@ func TestBadValues(t *testing.T) {
 
 	msg := err.Error()
 	assertStringContains(t, msg, `MY_BOOLEAN must be "true" or "false": got "3"`)
+	assertStringContains(t, msg, `MY_UINT_8 must be a uint8: got "a"`)
+	assertStringContains(t, msg, `MY_UINT_16 must be a uint16: got "b"`)
+	assertStringContains(t, msg, `MY_UINT_32 must be a uint32: got "c"`)
+	assertStringContains(t, msg, `MY_UINT_64 must be a uint64: got "d"`)
 	assertStringContains(t, msg, `MY_INT must be an int: got "foo"`)
 	assertStringContains(t, msg, `MY_BIG_INT must be a base-10 big.Int: got "99abc"`)
 	assertStringContains(t, msg, `MY_NESTED_BIG_INT_POINTER must be a base-10 big.Int: got "a34k"`)
 	assertStringContains(t, msg, `MY_INT_SLICE must be a comma-separated list of ints: index 1 is invalid: got "1,foo,2"`)
 	assertStringContains(t, msg, `MY_NESTED_VALUE must be an int: got "bar"`)
+}
+
+func TestUndeflowingInts(t *testing.T) {
+	defer setEnv(t, "MY_UINT_8", "-1")()
+	defer setEnv(t, "MY_UINT_16", "-1")()
+	defer setEnv(t, "MY_UINT_32", "-1")()
+	defer setEnv(t, "MY_UINT_64", "-1")()
+	cfg := Config{
+		Nested: &Nested{},
+	}
+	err := configs.LoadWithPrefix(&cfg, "MY")
+	if err == nil {
+		t.Errorf("Missing expected Load() error: %v", err)
+		return
+	}
+	msg := err.Error()
+	assertStringContains(t, msg, `MY_UINT_8 has a min value of 0: got "-1"`)
+	assertStringContains(t, msg, `MY_UINT_16 has a min value of 0: got "-1"`)
+	assertStringContains(t, msg, `MY_UINT_32 has a min value of 0: got "-1"`)
+	assertStringContains(t, msg, `MY_UINT_64 has a min value of 0: got "-1"`)
+}
+
+func TestOverflowingInts(t *testing.T) {
+	defer setEnv(t, "MY_UINT_8", "256")()
+	defer setEnv(t, "MY_UINT_16", "65536")()
+	defer setEnv(t, "MY_UINT_32", "4294967296")()
+	defer setEnv(t, "MY_UINT_64", "18446744073709551616")()
+	cfg := Config{
+		Nested: &Nested{},
+	}
+	err := configs.LoadWithPrefix(&cfg, "MY")
+	if err == nil {
+		t.Errorf("Missing expected Load() error: %v", err)
+		return
+	}
+	msg := err.Error()
+	assertStringContains(t, msg, `MY_UINT_8 has a max value of 255: got "256"`)
+	assertStringContains(t, msg, `MY_UINT_16 has a max value of 65535: got "65536"`)
+	assertStringContains(t, msg, `MY_UINT_32 has a max value of 4294967295: got "4294967296"`)
+	assertStringContains(t, msg, `MY_UINT_64 has a max value of 18446744073709551615: got "18446744073709551616"`)
 }
 
 func TestMultipleErrors(t *testing.T) {

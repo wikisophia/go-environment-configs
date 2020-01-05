@@ -3,6 +3,7 @@ package configs
 import (
 	"log"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -28,6 +29,11 @@ func logUnlessPassword(environment string, value reflect.Value) {
 	if strings.Contains(strings.ToLower(environment), "password") {
 		log.Printf("%s: <redacted>", environment)
 	} else {
-		log.Printf("%s: %#v", environment, value)
+		switch value.Kind() {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			log.Printf("%s: %s", environment, strconv.FormatUint(value.Uint(), 10))
+		default:
+			log.Printf("%s: %#v", environment, value)
+		}
 	}
 }
