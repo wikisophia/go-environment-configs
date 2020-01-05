@@ -42,6 +42,14 @@ func loader(prefix string) visitor {
 			return parseAndSetBool(environment, value, environmentValue)
 		case reflect.Int:
 			return parseAndSetInt(environment, value, environmentValue)
+		case reflect.Uint64:
+			return parseAndSetUInt(environment, value, environmentValue, 64)
+		case reflect.Uint32:
+			return parseAndSetUInt(environment, value, environmentValue, 32)
+		case reflect.Uint16:
+			return parseAndSetUInt(environment, value, environmentValue, 16)
+		case reflect.Uint8:
+			return parseAndSetUInt(environment, value, environmentValue, 8)
 		case reflect.String:
 			value.SetString(environmentValue)
 			return nil
@@ -99,6 +107,30 @@ func parseAndSetInt(env string, toSet reflect.Value, value string) *visitError {
 		}
 	}
 	toSet.SetInt(parsed)
+	return nil
+}
+
+func parseAndSetUInt(env string, toSet reflect.Value, value string, bitSize int) *visitError {
+	parsed, err := strconv.ParseUint(value, 10, bitSize)
+	if casted, ok := err.(*strconv.NumError); ok && casted != nil {
+		if casted.Err == strconv.ErrRange {
+			return &visitError{
+				error: fmt.Errorf("has a max value of %d", parsed),
+				Key:   env,
+			}
+		}
+		if _, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return &visitError{
+				error: errors.New("has a min value of 0"),
+				Key:   env,
+			}
+		}
+		return &visitError{
+			error: errors.New("must be a uint" + strconv.FormatInt(int64(bitSize), 10)),
+			Key:   env,
+		}
+	}
+	toSet.SetUint(parsed)
 	return nil
 }
 
