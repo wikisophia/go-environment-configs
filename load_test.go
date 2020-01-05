@@ -68,11 +68,13 @@ func TestWellFormedValues(t *testing.T) {
 	assertStringContains(t, logged, "MY_NESTED_VALUE: 20")
 	assertStringContains(t, logged, "MY_NESTED_BIG_INT_POINTER: 112")
 	assertStringContains(t, logged, "MY_SOME_PASSWORD: <redacted>")
+	assertNotStringContains(t, logged, "secret")
 }
 
 func TestBadValues(t *testing.T) {
 	defer setEnv(t, "MY_INT", "foo")()
 	defer setEnv(t, "MY_BIG_INT", "99abc")()
+	defer setEnv(t, "MY_NESTED_BIG_INT_POINTER", "a34k")()
 	defer setEnv(t, "MY_BOOLEAN", "3")()
 	defer setEnv(t, "MY_INT_SLICE", "1,foo,2")()
 	defer setEnv(t, "MY_NESTED_VALUE", "bar")()
@@ -89,8 +91,23 @@ func TestBadValues(t *testing.T) {
 	assertStringContains(t, msg, `MY_BOOLEAN must be "true" or "false": got "3"`)
 	assertStringContains(t, msg, `MY_INT must be an int: got "foo"`)
 	assertStringContains(t, msg, `MY_BIG_INT must be a base-10 big.Int: got "99abc"`)
-	assertStringContains(t, msg, `MY_INT_SLICE must be a comma-separated list of ints: got "1,foo,2" which contains a non-int at index 1`)
+	assertStringContains(t, msg, `MY_NESTED_BIG_INT_POINTER must be a base-10 big.Int: got "a34k"`)
+	assertStringContains(t, msg, `MY_INT_SLICE must be a comma-separated list of ints: index 1 is invalid: got "1,foo,2"`)
 	assertStringContains(t, msg, `MY_NESTED_VALUE must be an int: got "bar"`)
+}
+
+func TestMultipleErrors(t *testing.T) {
+	defer setEnv(t, "MY_INT", "foo")()
+	cfg := Config{
+		Nested: &Nested{},
+	}
+	err := configs.LoadWithPrefix(&cfg, "MY")
+	err = configs.Ensure(err, "MY_INT", false, "must be %s", "positive")
+	if err == nil {
+		t.Errorf("Missing expected Load() error: %v", err)
+		return
+	}
+	assertStringContains(t, err.Error(), `MY_INT must be an int: must be positive: got "foo"`)
 }
 
 func TestPanics(t *testing.T) {
@@ -123,16 +140,27 @@ func TestExtraErrors(t *testing.T) {
 	}
 	err = configs.Ensure(err, "MY_INT", true, "must be a negative integer")
 	if err != nil {
-		t.Errorf("Append() shouldn't produce an error if the predicate is true. Got: %v", err)
+		t.Errorf("Ensure() shouldn't produce an error if the predicate is true. Got: %v", err)
 		return
 	}
 
 	err = configs.Ensure(err, "MY_INT", false, "must be a positive integer")
 	if err == nil {
-		t.Error("a real error should have been returned")
+		t.Error("Ensure() should have returned a real error")
 		return
 	}
-	assertStringContains(t, err.Error(), "MY_INT must be a positive integer")
+	assertStringContains(t, err.Error(), `MY_INT must be a positive integer: got "-1"`)
+}
+
+func TestPasswordPrinting(t *testing.T) {
+	defer setEnv(t, "MY_SOME_PASSWORD", "secret")()
+	cfg := Config{
+		Nested: &Nested{},
+	}
+	err := configs.LoadWithPrefix(&cfg, "MY")
+	err = configs.Ensure(err, "MY_SOME_PASSWORD", false, "is invalid")
+	assertStringContains(t, err.Error(), `MY_SOME_PASSWORD is invalid`)
+	assertNotStringContains(t, err.Error(), "secret")
 }
 
 func assertStringsEqual(t *testing.T, expected string, actual string) {
@@ -146,6 +174,13 @@ func assertStringContains(t *testing.T, whole string, fragment string) {
 	t.Helper()
 	if !strings.Contains(whole, fragment) {
 		t.Errorf(`Expected "%s" to contain fragment "%s"`, whole, fragment)
+	}
+}
+
+func assertNotStringContains(t *testing.T, whole string, fragment string) {
+	t.Helper()
+	if strings.Contains(whole, fragment) {
+		t.Errorf(`Expected "%s" NOT to contain fragment "%s"`, whole, fragment)
 	}
 }
 

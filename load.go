@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -82,7 +83,7 @@ func parseAndSetBool(env string, toSet reflect.Value, value string) *visitError 
 		toSet.SetBool(false)
 	default:
 		return &visitError{
-			error: fmt.Errorf(`must be "true" or "false": got "%s"`, value),
+			error: errors.New(`must be "true" or "false"`),
 			Key:   env,
 		}
 	}
@@ -93,7 +94,7 @@ func parseAndSetInt(env string, toSet reflect.Value, value string) *visitError {
 	parsed, err := parseInt(value)
 	if err != nil {
 		return &visitError{
-			error: fmt.Errorf("must be an int: got \"%s\"", value),
+			error: errors.New("must be an int"),
 			Key:   env,
 		}
 	}
@@ -109,7 +110,7 @@ func parseAndSetBigInt(env string, toSet reflect.Value, value string) *visitErro
 	parsed, ok := parseBigInt(value)
 	if !ok {
 		return &visitError{
-			error: fmt.Errorf("must be a base-10 big.Int: got \"%s\"", value),
+			error: errors.New("must be a base-10 big.Int"),
 			Key:   env,
 		}
 	}
@@ -121,7 +122,7 @@ func parseAndSetBigIntPointer(env string, toSet reflect.Value, value string) *vi
 	parsed, ok := parseBigInt(value)
 	if !ok {
 		return &visitError{
-			error: fmt.Errorf("must be a base-10 big.Int: got \"%s\"", value),
+			error: errors.New("must be a base-10 big.Int"),
 			Key:   env,
 		}
 	}
@@ -163,7 +164,7 @@ func parseCommaSeparatedInts(value string) ([]int, error) {
 	for i := 0; i < len(stringSlice); i++ {
 		parsed, err := strconv.Atoi(stringSlice[i])
 		if err != nil {
-			return nil, fmt.Errorf(`must be a comma-separated list of ints: got "%s" which contains a non-int at index %d`, value, i)
+			return nil, fmt.Errorf(`must be a comma-separated list of ints: index %d is invalid`, i)
 		}
 		intSlice[i] = parsed
 	}
