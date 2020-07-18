@@ -4,8 +4,8 @@ branches:
   only:
     - master
 go:
-  - '1.11.4'
+  - '1.14.6'
 before_script:
-  - go get -u github.com/golang/lint/golint
+  - go get -u golang.org/x/lint/golint
 script:
   - ./test.sh
